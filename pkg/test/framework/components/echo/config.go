@@ -23,6 +23,7 @@ import (
 	"github.com/mitchellh/copystructure"
 	"gopkg.in/yaml.v3"
 
+	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/test/echo/common"
@@ -42,6 +43,12 @@ type Cluster interface {
 // Configurable is and object that has Config.
 type Configurable interface {
 	Config() Config
+
+	// NamespacedName is a short form for Config().NamespacedName().
+	NamespacedName() model.NamespacedName
+
+	// PortForName is a short form for Config().Ports.MustForName().
+	PortForName(name string) Port
 }
 
 type VMDistro = string
@@ -138,6 +145,20 @@ type Config struct {
 	// the CUSTOM authorization policy when the ext-authz server is deployed locally with the application container in
 	// the same pod.
 	IncludeExtAuthz bool
+
+	// IPFamily for the service. This is optional field. Mainly is used for dual stack testing
+	IPFamilies string
+
+	// IPFamilyPolicy. This is optional field. Mainly is used for dual stack testing.
+	IPFamilyPolicy string
+}
+
+// NamespacedName returns the namespaced name for the service.
+func (c Config) NamespacedName() model.NamespacedName {
+	return model.NamespacedName{
+		Name:      c.Service,
+		Namespace: c.Namespace.Name(),
+	}
 }
 
 // SubsetConfig is the config for a group of Subsets (e.g. Kubernetes deployment).
@@ -152,16 +173,6 @@ type SubsetConfig struct {
 // String implements the Configuration interface (which implements fmt.Stringer)
 func (c Config) String() string {
 	return fmt.Sprint("{service: ", c.Service, ", version: ", c.Version, "}")
-}
-
-// PortByName looks up a given port by name
-func (c Config) PortByName(name string) *Port {
-	for _, p := range c.Ports {
-		if p.Name == name {
-			return &p
-		}
-	}
-	return nil
 }
 
 // ClusterLocalFQDN returns the fully qualified domain name for cluster-local host.

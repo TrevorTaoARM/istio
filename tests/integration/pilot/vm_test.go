@@ -33,9 +33,10 @@ import (
 	"istio.io/istio/pkg/test/echo/check"
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/echo"
-	echocommon "istio.io/istio/pkg/test/framework/components/echo/common"
+	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
 	"istio.io/istio/pkg/test/framework/components/echo/deployment"
 	"istio.io/istio/pkg/test/framework/components/echo/kube"
+	"istio.io/istio/pkg/test/framework/components/echo/match"
 	"istio.io/istio/pkg/test/framework/label"
 	"istio.io/istio/pkg/test/scopes"
 	"istio.io/istio/pkg/test/util/retry"
@@ -68,7 +69,7 @@ func TestVmOSPost(t *testing.T) {
 				b = b.WithConfig(echo.Config{
 					Service:    "vm-" + strings.ReplaceAll(image, "_", "-"),
 					Namespace:  apps.Namespace,
-					Ports:      echocommon.Ports,
+					Ports:      ports.All(),
 					DeployAsVM: true,
 					VMDistro:   image,
 					Subsets:    []echo.SubsetConfig{{}},
@@ -98,14 +99,14 @@ func TestVMRegistrationLifecycle(t *testing.T) {
 				t.Skip()
 			}
 			scaleDeploymentOrFail(t, "istiod", i.Settings().SystemNamespace, 2)
-			client := apps.PodA.GetOrFail(t, echo.InCluster(t.Clusters().Default()))
+			client := match.InCluster(t.Clusters().Default()).FirstOrFail(t, apps.PodA)
 			// TODO test multi-network (must be shared control plane but on different networks)
 			var autoVM echo.Instance
 			_ = deployment.New(t).
 				With(&autoVM, echo.Config{
 					Namespace:      apps.Namespace,
 					Service:        "auto-vm",
-					Ports:          echocommon.Ports,
+					Ports:          ports.All(),
 					DeployAsVM:     true,
 					AutoRegisterVM: true,
 				}).BuildOrFail(t)
@@ -113,7 +114,7 @@ func TestVMRegistrationLifecycle(t *testing.T) {
 				retry.UntilSuccessOrFail(t, func() error {
 					res, err := client.Call(echo.CallOptions{
 						To:   autoVM,
-						Port: &autoVM.Config().Ports[0],
+						Port: autoVM.Config().Ports[0],
 						Retry: echo.Retry{
 							NoRetry: true,
 						},

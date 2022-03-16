@@ -302,6 +302,16 @@ type Proxy struct {
 	XdsNode *core.Node
 
 	AutoregisteredWorkloadEntryName string
+
+	// LastPushContext stores the most recent push context for this proxy. This will be monotonically
+	// increasing in version. Requests should send config based on this context; not the global latest.
+	// Historically, the latest was used which can cause problems when computing whether a push is
+	// required, as the computed sidecar scope version would not monotonically increase.
+	LastPushContext *PushContext
+	// LastPushTime records the time of the last push. This is used in conjunction with
+	// LastPushContext; the XDS cache depends on knowing the time of the PushContext to determine if a
+	// key is stale or not.
+	LastPushTime time.Time
 }
 
 // WatchedResource tracks an active DiscoveryRequest subscription.
@@ -471,6 +481,9 @@ type BootstrapNodeMetadata struct {
 
 	// PilotSAN is the list of subject alternate names for the xDS server.
 	PilotSubjectAltName []string `json:"PILOT_SAN,omitempty"`
+
+	// XDSRootCert defines the root cert to use for XDS connections
+	XDSRootCert string `json:"-"`
 
 	// OutlierLogPath is the cluster manager outlier event log path.
 	OutlierLogPath string `json:"OUTLIER_LOG_PATH,omitempty"`

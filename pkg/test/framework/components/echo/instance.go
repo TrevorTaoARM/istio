@@ -21,12 +21,14 @@ import (
 // Instance is a component that provides access to a deployed echo service.
 type Instance interface {
 	Caller
-	Configurable
-	WorkloadContainer
+	Target
 	resource.Resource
 
 	// Address of the service (e.g. Kubernetes cluster IP). May be "" if headless.
 	Address() string
+
+	// Addresses of service in dualmode
+	Addresses() []string
 
 	// Restart restarts the workloads associated with this echo instance
 	Restart() error

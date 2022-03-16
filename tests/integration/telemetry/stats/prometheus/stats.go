@@ -31,6 +31,7 @@ import (
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/echo"
 	"istio.io/istio/pkg/test/framework/components/echo/deployment"
+	"istio.io/istio/pkg/test/framework/components/echo/match"
 	"istio.io/istio/pkg/test/framework/components/istio"
 	"istio.io/istio/pkg/test/framework/components/istio/ingress"
 	"istio.io/istio/pkg/test/framework/components/namespace"
@@ -85,7 +86,7 @@ func GetClientInstances() echo.Instances {
 	return client
 }
 
-func GetServerInstances() echo.Instances {
+func GetTarget() echo.Target {
 	return server
 }
 
@@ -148,11 +149,11 @@ func TestStatsFilter(t *testing.T, feature features.Feature) {
 
 			// In addition, verifies that mocked prometheus could call metrics endpoint with proxy provisioned certs
 			for _, prom := range mockProm {
-				st := server.GetOrFail(t, echo.InCluster(prom.Config().Cluster))
+				st := match.InCluster(prom.Config().Cluster).FirstOrFail(t, server)
 				prom.CallOrFail(t, echo.CallOptions{
 					Address: st.WorkloadsOrFail(t)[0].Address(),
 					Scheme:  scheme.HTTPS,
-					Port:    &echo.Port{ServicePort: 15014},
+					Port:    echo.Port{ServicePort: 15014},
 					HTTP: echo.HTTP{
 						Path: "/metrics",
 					},
@@ -308,10 +309,10 @@ proxyMetadata:
 	for _, c := range ctx.Clusters() {
 		ingr = append(ingr, ist.IngressFor(c))
 	}
-	client = echos.Match(echo.Service("client"))
-	server = echos.Match(echo.Service("server"))
-	nonInjectedServer = echos.Match(echo.Service("server-no-sidecar"))
-	mockProm = echos.Match(echo.Service("mock-prom"))
+	client = match.Service("client").GetMatches(echos)
+	server = match.Service("server").GetMatches(echos)
+	nonInjectedServer = match.Service("server-no-sidecar").GetMatches(echos)
+	mockProm = match.Service("mock-prom").GetMatches(echos)
 	promInst, err = prometheus.New(ctx, prometheus.Config{})
 	if err != nil {
 		return
@@ -322,10 +323,12 @@ proxyMetadata:
 // SendTraffic makes a client call to the "server" service on the http port.
 func SendTraffic(cltInstance echo.Instance) error {
 	_, err := cltInstance.Call(echo.CallOptions{
-		To:       server[0],
-		PortName: "http",
-		Count:    util.RequestCountMultipler * len(server),
-		Check:    check.OK(),
+		To: server,
+		Port: echo.Port{
+			Name: "http",
+		},
+		Count: util.RequestCountMultipler * server.MustWorkloads().Len(),
+		Check: check.OK(),
 		Retry: echo.Retry{
 			NoRetry: true,
 		},
@@ -334,9 +337,11 @@ func SendTraffic(cltInstance echo.Instance) error {
 		return err
 	}
 	_, err = cltInstance.Call(echo.CallOptions{
-		To:       nonInjectedServer[0],
-		PortName: "http",
-		Count:    util.RequestCountMultipler * len(nonInjectedServer),
+		To: nonInjectedServer,
+		Port: echo.Port{
+			Name: "http",
+		},
+		Count: util.RequestCountMultipler * nonInjectedServer.MustWorkloads().Len(),
 		Retry: echo.Retry{
 			NoRetry: true,
 		},
@@ -350,9 +355,11 @@ func SendTraffic(cltInstance echo.Instance) error {
 // SendTCPTraffic makes a client call to the "server" service on the tcp port.
 func SendTCPTraffic(cltInstance echo.Instance) error {
 	_, err := cltInstance.Call(echo.CallOptions{
-		To:       server[0],
-		PortName: "tcp",
-		Count:    util.RequestCountMultipler * len(server),
+		To: server,
+		Port: echo.Port{
+			Name: "tcp",
+		},
+		Count: util.RequestCountMultipler * server.MustWorkloads().Len(),
 		Retry: echo.Retry{
 			NoRetry: true,
 		},

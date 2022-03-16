@@ -38,6 +38,7 @@ import (
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/echo"
 	"istio.io/istio/pkg/test/framework/components/echo/deployment"
+	"istio.io/istio/pkg/test/framework/components/echo/match"
 	"istio.io/istio/pkg/test/framework/components/gcemetadata"
 	"istio.io/istio/pkg/test/framework/components/istio"
 	"istio.io/istio/pkg/test/framework/components/namespace"
@@ -151,20 +152,23 @@ func TestSetup(ctx resource.Context) (err error) {
 	if err != nil {
 		return
 	}
-	Clt = echos.Match(echo.ServicePrefix("clt"))
-	Srv = echos.Match(echo.Service("srv"))
+	Clt = match.ServicePrefix("clt").GetMatches(echos)
+	Srv = match.Service("srv").GetMatches(echos)
 	return nil
 }
 
 // send both a grpc and http requests (http with forced tracing).
 func SendTraffic(cltInstance echo.Instance, headers http.Header, onlyTCP bool) error {
+	callCount := telemetry.RequestCountMultipler * Srv.MustWorkloads().Len()
 	//  All server instance have same names, so setting target as srv[0].
 	// Sending the number of total request same as number of servers, so that load balancing gets a chance to send request to all the clusters.
 	if onlyTCP {
 		_, err := cltInstance.Call(echo.CallOptions{
-			To:       Srv[0],
-			PortName: "tcp",
-			Count:    telemetry.RequestCountMultipler * len(Srv),
+			To: Srv,
+			Port: echo.Port{
+				Name: "tcp",
+			},
+			Count: callCount,
 			Retry: echo.Retry{
 				NoRetry: true,
 			},
@@ -172,21 +176,25 @@ func SendTraffic(cltInstance echo.Instance, headers http.Header, onlyTCP bool) e
 		return err
 	}
 	grpcOpts := echo.CallOptions{
-		To:       Srv[0],
-		PortName: "grpc",
-		Count:    telemetry.RequestCountMultipler * len(Srv),
+		To: Srv,
+		Port: echo.Port{
+			Name: "grpc",
+		},
+		Count: callCount,
 		Retry: echo.Retry{
 			NoRetry: true,
 		},
 	}
 	// an HTTP request with forced tracing
 	httpOpts := echo.CallOptions{
-		To:       Srv[0],
-		PortName: "http",
+		To: Srv,
+		Port: echo.Port{
+			Name: "http",
+		},
 		HTTP: echo.HTTP{
 			Headers: headers,
 		},
-		Count: telemetry.RequestCountMultipler * len(Srv),
+		Count: callCount,
 		Retry: echo.Retry{
 			NoRetry: true,
 		},

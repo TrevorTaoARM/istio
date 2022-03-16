@@ -25,6 +25,7 @@ import (
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
 	"istio.io/istio/pkg/test/framework/components/echo/deployment"
+	"istio.io/istio/pkg/test/framework/components/echo/match"
 	"istio.io/istio/pkg/test/framework/components/istio"
 	"istio.io/istio/pkg/test/framework/components/istio/ingress"
 	"istio.io/istio/pkg/test/framework/components/namespace"
@@ -105,8 +106,8 @@ func TestSetup(ctx resource.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	client = echos.Match(echo.ServicePrefix("client"))
-	server = echos.Match(echo.Service("server"))
+	client = match.ServicePrefix("client").GetMatches(echos)
+	server = match.Service("server").GetMatches(echos)
 	ingInst = ist.IngressFor(ctx.Clusters().Default())
 	addr, _ := ingInst.HTTPAddress()
 	zipkinInst, err = zipkin.New(ctx, zipkin.Config{Cluster: ctx.Clusters().Default(), IngressAddr: addr})
@@ -182,9 +183,11 @@ func SendTraffic(t framework.TestContext, headers map[string][]string, cl cluste
 		}
 
 		_, err := cltInstance.Call(echo.CallOptions{
-			To:       server[0],
-			PortName: "http",
-			Count:    telemetry.RequestCountMultipler * len(server),
+			To: server,
+			Port: echo.Port{
+				Name: "http",
+			},
+			Count: telemetry.RequestCountMultipler * server.WorkloadsOrFail(t).Len(),
 			HTTP: echo.HTTP{
 				Headers: headers,
 			},

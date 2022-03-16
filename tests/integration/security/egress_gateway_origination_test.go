@@ -29,11 +29,11 @@ import (
 	"istio.io/istio/pkg/test"
 	echoClient "istio.io/istio/pkg/test/echo"
 	"istio.io/istio/pkg/test/echo/check"
-	"istio.io/istio/pkg/test/echo/common/scheme"
 	"istio.io/istio/pkg/test/env"
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/echo"
 	"istio.io/istio/pkg/test/framework/components/echo/echotest"
+	"istio.io/istio/pkg/test/framework/components/echo/match"
 	"istio.io/istio/pkg/test/framework/components/istio"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 	"istio.io/istio/pkg/test/framework/resource"
@@ -104,11 +104,11 @@ func TestSimpleTlsOrigination(t *testing.T) {
 					CreateDestinationRule(t, apps.Namespace1, "SIMPLE", tc.CredentialToUse)
 					echotest.New(t, apps.All).
 						WithDefaultFilters().
-						From(echotest.Not(echotest.FilterMatch(echo.IsNaked()))).
-						To(echotest.FilterMatch(echo.Service(util.ExternalSvc))).
-						Run(func(t framework.TestContext, src echo.Instance, dst echo.Instances) {
-							callOpt := CallOpts(dst[0], host, tc)
-							src.CallOrFail(t, callOpt)
+						FromMatch(match.IsNotNaked).
+						ToMatch(match.Service(util.ExternalSvc)).
+						Run(func(t framework.TestContext, from echo.Instance, to echo.Target) {
+							callOpt := CallOpts(to, host, tc)
+							from.CallOrFail(t, callOpt)
 						})
 				})
 			}
@@ -217,11 +217,11 @@ func TestMutualTlsOrigination(t *testing.T) {
 					CreateDestinationRule(t, apps.Namespace1, "MUTUAL", tc.CredentialToUse)
 					echotest.New(t, apps.All).
 						WithDefaultFilters().
-						From(echotest.Not(echotest.FilterMatch(echo.IsNaked()))).
-						To(echotest.FilterMatch(echo.Service(util.ExternalSvc))).
-						Run(func(t framework.TestContext, src echo.Instance, dst echo.Instances) {
-							callOpt := CallOpts(dst[0], host, tc)
-							src.CallOrFail(t, callOpt)
+						FromMatch(match.IsNotNaked).
+						ToMatch(match.Service(util.ExternalSvc)).
+						Run(func(t framework.TestContext, from echo.Instance, to echo.Target) {
+							callOpt := CallOpts(to, host, tc)
+							from.CallOrFail(t, callOpt)
 						})
 				})
 			}
@@ -354,12 +354,13 @@ type TLSTestCase struct {
 	Gateway         bool // true if the request is expected to be routed through gateway
 }
 
-func CallOpts(dest echo.Instance, host string, tc TLSTestCase) echo.CallOptions {
+func CallOpts(to echo.Target, host string, tc TLSTestCase) echo.CallOptions {
 	return echo.CallOptions{
-		To:       dest,
-		Count:    util.CallsPerCluster,
-		PortName: "http",
-		Scheme:   scheme.HTTP,
+		To:    to,
+		Count: util.CallsPerCluster * to.MustWorkloads().Len(),
+		Port: echo.Port{
+			Name: "http",
+		},
 		HTTP: echo.HTTP{
 			Headers: headers.New().WithHost(host).Build(),
 		},
